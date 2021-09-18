@@ -1,2 +1,2 @@
 # go-summary
-Some main points in go development just for me
+[Abnormal project] Some main points in go development just for me
