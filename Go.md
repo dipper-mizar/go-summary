@@ -4,7 +4,9 @@
 
 ![img](https://upload-images.jianshu.io/upload_images/2733312-9d0856df3b5faf00.png?imageMogr2/auto-orient/strip|imageView2/2/w/811/format/webp)
 
-每个包中，按文件名排序，先常量，再全局变量，最后init()方法，如果涉及包之间的调用，最里层的包先进行上述的流程。
+每个包中，按文件名排序，先常量，再全局变量，最后`init()`方法，如果涉及包之间的调用，最里层的包先进行上述的流程。
+
+如果一个全局变量中依赖另一个全局变量，则被依赖的那个全局变量先初始化。
 
 #### Map
 
@@ -18,6 +20,12 @@ b[key] = value
 
 Fields := make(map[string]interface, 10)	// 变量必须要make 或者不用:= 分开写 var Fields map[string]interface{}
 Fields[key] = value
+
+// 匿名实例化
+Fields := map[string]interface{
+    "console": xxxx,
+    "json": xxxx
+}    
 
 // 遍历map
 for k, v := range Fields {
@@ -42,6 +50,9 @@ a = append(a, "iou")
 // make
 Fields := make([]string, 10)
 Fields = append(Fields, value)	// 必须要有Fields接收
+
+// 匿名实例化
+Fields := []string{"xxx", "foo"}
 
 // 遍历数组（与Map不同的是，i获取到的是数组索引）
 for i, v := range Fields {
@@ -158,7 +169,7 @@ func main() {
 
 输出6和16
 
-也就是说直接由int变过来的类型可以通过指针全局的修改值 但结构体中的变量不能全局的改，在方法中改动只在改方法中有效，因为在`Area`方法中这样的语法是错误的：`*t.bottom = 4`，因为`t.bottom`是具体的值，这是整体，前面不能再用*号取值。
+也就是说直接由int变过来的类型可以通过指针全局的修改值 但结构体中的变量不能全局的改，在方法中改动只在改方法中有效，因为在`Area`方法中这样的语法是错误的：`*t.Bottom = 4`，因为`t.Bottom`是具体的值，这是整体，前面不能再用*号取值。
 
 #### 切片slice
 
@@ -221,7 +232,8 @@ fmt.Fprint()
 fmt.Fprintln()
 fmt.Fprintf()
 
-fmt.Errorf() error	// 他与Sprint很像，只不过这里的返回值直接是error类型
+f1 := fmt.Errorf() error	// 他与Sprint很像，只不过这里的返回值直接是error类型
+f1.Error() // Error()方法可以将error类型转化为string类型
 ```
 
 #### 关系
@@ -290,7 +302,17 @@ strings.ToLower(str)
 strings.TrimSuffix(str, substr)	// 去除str尾部的substr 不能去除则仍然返回str
 ```
 
+#### 全局变量和局部变量
 
+- 全局变量实例化时不用:=，该符号只用于局部变量初始化
+
+- 全局变量实例化但不使用不会报错，局部变量不使用会报错
+
+#### 错误和异常
+
+这俩分别对应error和panic
+
+错误是指在可能发生错误的地方发生了错误，比如打开文件，数据库连接等等，异常是指在不可能发生错误的地方发生了错误。
 
 # 功能实现设计思想
 
@@ -382,4 +404,70 @@ sync.Pool中保存的任何项都可能随时不做通知的释放掉，所以�
 - fmt.Println等等
 - fmt.Fprintln等等
 - os.Stderr.Write([]byte)/os.Stdout.Write([]byte)
+
+#### 方法如何取得参数
+
+一个方法可以有两个渠道取得参数
+
+- 形参
+
+- 从类似于如下代码所示的，`_unknownLevelColor`所代表的值：
+
+  ```go
+  _unknownLevelColor.Add(l.String())
+  func (c Color) Add(s string) string
+  ```
+
+这样参数c能拿到`_unknownLevelColor`
+
+#### 接口的实现
+
+- 接口的实现仍然是接口：有点像功能的扩展，接口B实现了接口A，就相当于将接口A的功能添加了其他东西成了接口B
+- 接口的实现先是接口，后是结构体，如何体现多态？例如`WriteSyncer`接口实现了`io.Writer`接口，`os.Stderr`却可以直接赋值给`WriteSyncer`接口，因为`WriteSyncer`接口继承了`io.Writer`的功能
+- 虽然接口的实现可以是接口，但在阅读源码时注意接口的实现要精确到方法
+
+#### Functional Options Pattern
+
+- 简单情况下，可定义一个函数类
+
+```go
+type ConfigOption func(*Logger)
+// 返回该函数类型
+func WithConsoleOPT() ConfigOption {
+	return func(l *logger) {
+		l.isConsole = true
+	}
+}
+```
+
+- 高级的用法，把那个函数类抽象成一个接口，暴露`apply()`方法
+
+```go
+type Option interface {
+	apply(*Logger)
+}
+type optionFunc func(*Logger)
+func (f optionFunc) apply(log *Logger) {
+	f(log)
+}
+// 返回该接口类型
+func WrapCore() Option {
+	return optionFunc(func(log *Logger) {
+		log.core = log.xxx
+	})
+}
+```
+
+#### 根据不同情况执行不同函数
+
+使用Map
+
+```go
+map[string]func(zapcore.EncoderConfig) (zapcore.Encoder, error) {
+    "console": func() {},
+    "json": func() {},
+}
+```
+
+为了可扩展性，也可提供一个Register函数，可以往这个Map里加内容。
 
